@@ -1,0 +1,5 @@
+# Bu dosya, go-tor-scraper uygulaması tarafından hedef .onion sitelerinin listesini sağlamak için kullanılır.
+# Alt alta yazılmış .onion URL'leri içermelidir. Başında "http://" veya "https://" eklenebilir.
+# Yorum satırları için '#' karakteri kullanılabilir.
+# Örnek:
+# http://exampleonion1.onion

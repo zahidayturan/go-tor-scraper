@@ -41,7 +41,7 @@ func main() {
 	transport := &http.Transport{Dial: dialer.Dial}
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   time.Second * 60,
+		Timeout:   time.Second * 75,
 	}
 
 	logger.Println("[CHECK] Tor ağ bağlantısı doğrulanıyor...")
@@ -63,11 +63,16 @@ func main() {
 
 	scanner := bufio.NewScanner(targetsFile)
 	for scanner.Scan() {
-		url := strings.TrimSpace(scanner.Text())
+		line := strings.TrimSpace(scanner.Text())
 		
-		if url == "" || strings.HasPrefix(url, "#") || strings.HasPrefix(url, "---") {
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "---") {
 			continue
 		}
+
+		url := line
+    	if !strings.HasPrefix(url, "http") {
+        	url = "http://" + url
+    	}
 
 		totalSites++
 		logger.Printf("[INFO] Taranıyor (%d): %s", totalSites, url)
