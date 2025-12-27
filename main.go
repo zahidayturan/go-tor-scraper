@@ -15,85 +15,98 @@ import (
 )
 
 func main() {
+	outputDir := "outputs"
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		err := os.Mkdir(outputDir, 0755)
+		if err != nil {
+			log.Fatal("Outputs klasörü oluşturulamadı:", err)
+		}
+	}
 
-	logFile, err := os.OpenFile("logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile(outputDir+"/logs.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal("Log dosyası oluşturulamadı:", err)
 	}
 	defer logFile.Close()
 
-	// Hem ekrana hem dosyaya yazmak için
 	multiWriter := io.MultiWriter(os.Stdout, logFile)
 	logger := log.New(multiWriter, "", log.LstdFlags)
 
-	// Tor Proxy 9150 veya 9050
 	proxyAddr := "127.0.0.1:9150" 
 	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
 	if err != nil {
-		logger.Fatalf("[CRITICAL] Proxy bağlantı hatası: %v", err)
+		logger.Fatalf("[CRITICAL] [CLOSE] Proxy sunucusuna bağlanılamadı: %v \n\n\n", err)
 	}
 
 	transport := &http.Transport{Dial: dialer.Dial}
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   time.Second * 30,
+		Timeout:   time.Second * 60,
 	}
 
-	// 	Tor ağ kontrolü
-	logger.Println("[CHECK] Tor ağ bağlantısı kontrol ediliyor...")
+	logger.Println("[CHECK] Tor ağ bağlantısı doğrulanıyor...")
 	checkResp, err := client.Get("http://check.torproject.org")
 	if err != nil || checkResp.StatusCode != 200 {
-		logger.Fatalf("[ERROR] Tor ağına bağlanılamadı! Lütfen Tor Browser'ın açık olduğundan emin olun.")
+		logger.Fatalf("[ERROR] [CLOSE] Tor ağı aktif değil! Lütfen Tor Browser'ı açın ve portu (9150/9050) kontrol edin. \n\n\n")
 	}
-	logger.Println("[SUCCESS] Tor ağı aktif. Tarama başlıyor...")
-
-
-	outputDir := "outputs"
-	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		os.Mkdir(outputDir, 0755)
-	}
+	logger.Println("[SUCCESS] Tor ağı bağlantısı sağlandı. İşlemler başlıyor.")
 
 	targetsFile, err := os.Open("targets.yaml")
 	if err != nil {
-		logger.Fatalf("[ERROR] targets.yaml bulunamadı: %v", err)
+		logger.Fatalf("[ERROR] [CLOSE] targets.yaml dosyası bulunamadı: %v \n\n\n", err)
 	}
 	defer targetsFile.Close()
+
+	totalSites := 0
+	successCount := 0
+	failCount := 0
 
 	scanner := bufio.NewScanner(targetsFile)
 	for scanner.Scan() {
 		url := strings.TrimSpace(scanner.Text())
-		if url == "" || strings.HasPrefix(url, "#") {
+		
+		if url == "" || strings.HasPrefix(url, "#") || strings.HasPrefix(url, "---") {
 			continue
 		}
 
-		logger.Printf("[INFO] Taranıyor: %s", url)
+		totalSites++
+		logger.Printf("[INFO] Taranıyor (%d): %s", totalSites, url)
 
 		resp, err := client.Get(url)
 		if err != nil {
-			logger.Printf("[ERR] Başarısız: %s | Hata: %v", url, err)
+			logger.Printf("[ERR] Siteye ulaşılamadı: %s | Hata: %v", url, err)
+			failCount++
 			continue
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			logger.Printf("[ERR] Body okuma hatası: %s", url)
+			logger.Printf("[ERR] İçerik okuma hatası: %s", url)
+			failCount++
 			continue
 		}
 
 		timestamp := time.Now().Format("20060102_150405")
+
 		cleanUrl := strings.TrimPrefix(url, "http://")
 		cleanUrl = strings.TrimPrefix(cleanUrl, "https://")
 		cleanUrl = strings.ReplaceAll(cleanUrl, "/", "_")
+		cleanUrl = strings.ReplaceAll(cleanUrl, ":", "_")
 		
 		fileName := fmt.Sprintf("%s/%s_%s.html", outputDir, timestamp, cleanUrl)
 
 		err = ioutil.WriteFile(fileName, body, 0644)
 		if err != nil {
-			logger.Printf("[ERR] Kayıt hatası: %v", err)
+			logger.Printf("[ERR] Kayıt hatası (%s): %v", url, err)
+			failCount++
 		} else {
-			logger.Printf("[SUCCESS] Kaydedildi: %s", fileName)
+			logger.Printf("[SUCCESS] Veri kaydedildi: %s", fileName)
+			successCount++
 		}
 	}
+
+	logger.Printf("[REPORT] Toplam Taranan : %d | Başarılı : %d | Başarısız : %d", totalSites, successCount, failCount)
 	logger.Println("[FINISH] Tüm işlemler tamamlandı.")
+	logger.Println("[CLOSE] ---------------------------------------------\n\n\n")
 }
