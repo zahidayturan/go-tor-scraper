@@ -1,4 +1,4 @@
-# Tor-Powered Web Content Scraper
+# Tor Scraper
 
 This application is a privacy-oriented web scraping tool developed in **Go**. It connects to target websites through the Tor network **(SOCKS5 proxy)** to fetch and archive page content locally while maintaining anonymity.
 
@@ -31,4 +31,5 @@ go run main.go
 ```
 
 ##  Output Structure
+
 The application stores every successful scrape within the outputs/ directory. Saved using the format outputs/YYYYMMDD_HHMMSS_domain.html. A full history of the process is kept in outputs/logs.txt.
